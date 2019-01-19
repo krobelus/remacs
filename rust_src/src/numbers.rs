@@ -8,6 +8,7 @@ use remacs_macros::lisp_fn;
 use crate::{
     lisp::defsubr,
     lisp::LispObject,
+    marker::LispMarkerRef,
     remacs_sys::{
         EmacsDouble, EmacsInt, EmacsUint, Lisp_Bits, Lisp_Type, EMACS_INT_MAX, INTMASK, USE_LSB_TAG,
     },
@@ -225,6 +226,55 @@ impl LispObject {
 
     pub fn as_number_coerce_marker_or_error(self) -> LispNumber {
         self.into()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum LispNumberOrMarker {
+    Number(LispNumber),
+    Marker(LispMarkerRef),
+}
+
+impl LispNumberOrMarker {
+    pub fn to_fixnum(&self) -> EmacsInt {
+        match self {
+            LispNumberOrMarker::Number(n) => n.to_fixnum(),
+            LispNumberOrMarker::Marker(m) => m.charpos_or_error() as EmacsInt,
+        }
+    }
+}
+
+impl From<LispNumber> for LispNumberOrMarker {
+    fn from(n: LispNumber) -> Self {
+        LispNumberOrMarker::Number(n)
+    }
+}
+
+impl From<LispMarkerRef> for LispNumberOrMarker {
+    fn from(m: LispMarkerRef) -> Self {
+        LispNumberOrMarker::Marker(m)
+    }
+}
+
+impl From<LispObject> for LispNumberOrMarker {
+    fn from(o: LispObject) -> Self {
+        let as_number: Option<LispNumber> = o.into();
+        if let Some(n) = as_number {
+            LispNumberOrMarker::Number(n)
+        } else if let Some(m) = o.as_marker() {
+            LispNumberOrMarker::Marker(m)
+        } else {
+            wrong_type!(Qnumber_or_marker_p, o)
+        }
+    }
+}
+
+impl From<LispNumberOrMarker> for LispObject {
+    fn from(nm: LispNumberOrMarker) -> LispObject {
+        match nm {
+            LispNumberOrMarker::Number(n) => n.into(),
+            LispNumberOrMarker::Marker(m) => m.into(),
+        }
     }
 }
 
