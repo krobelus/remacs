@@ -70,4 +70,6 @@ ptrdiff_t position_indentation (ptrdiff_t pos_byte);
 
 void scan_for_column (ptrdiff_t *endpos, EMACS_INT *goalcol, ptrdiff_t *prevcol);
 
+void line_number_display_width (struct window *w, int *width, int *pixel_width);
+
 #endif /* EMACS_INDENT_H */

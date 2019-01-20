@@ -7,19 +7,19 @@ use remacs_macros::lisp_fn;
 use crate::{
     buffers::{point_byte, point_min_byte},
     editfns::{insert_char, point, point_min},
+    frames::LispFrameRef,
     lisp::{defsubr, LispObject},
     multibyte::Codepoint,
     remacs_sys::globals,
     remacs_sys::EmacsUint,
     remacs_sys::{
-        self, find_newline, position_indentation, sanitize_tab_width, scan_for_column, set_point,
-        EmacsInt,
+        self, find_newline, last_known_column, last_known_column_modified, last_known_column_point,
+        position_indentation, sanitize_tab_width, scan_for_column, set_point, set_point_both,
+        EmacsDouble, EmacsInt,
     },
-    remacs_sys::{del_range, Qt},
-    remacs_sys::{
-        last_known_column, last_known_column_modified, last_known_column_point, set_point_both,
-    },
+    remacs_sys::{del_range, Qcolumns, Qt},
     threads::ThreadState,
+    windows::{selected_window, LispWindowRef},
 };
 
 /// Return the indentation of the current line.  This is the
@@ -176,6 +176,36 @@ pub fn indent_to(column: EmacsInt, minimum: Option<EmacsInt>) -> EmacsInt {
     }
 
     mincol
+}
+
+/// Return the width used for displaying line numbers in the selected
+/// window.  If optional argument PIXELWISE is the symbol `columns',
+/// return the width in units of the frame's canonical character
+/// width.  In this case, the value is a float.
+///
+/// If optional argument PIXELWISE is t or any other non-nil value,
+/// return the width as an integer number of pixels.
+///
+/// Otherwise return the value as an integer number of columns of the
+/// face used to display line numbers, `line-number'.  Note that in
+/// the latter case, the value doesn't include the 2 columns used for
+/// padding the numbers on display.
+#[lisp_fn(min = "0")]
+pub fn line_number_display_width(pixelwise: LispObject) -> LispObject {
+    let mut window = LispWindowRef::from(selected_window());
+    // n.b. Rust doesn't know that these two will be initialized by
+    // the FFI call.
+    let mut width = 0;
+    let mut pixel_width = 0;
+    unsafe { remacs_sys::line_number_display_width(window.as_mut(), &mut width, &mut pixel_width) };
+    if pixelwise == Qcolumns {
+        let frame = LispFrameRef::from(window.frame);
+        (pixel_width as EmacsDouble / frame.column_width as EmacsDouble).into()
+    } else if !pixelwise.is_nil() {
+        pixel_width.into()
+    } else {
+        width.into()
+    }
 }
 
 include!(concat!(env!("OUT_DIR"), "/indent_exports.rs"));
